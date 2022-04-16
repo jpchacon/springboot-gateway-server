@@ -1,0 +1,62 @@
+server:
+  port: 8090
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      defecto:
+        slidingWindowSize: 6
+        failureRateThreshold: 50
+        waitDurationInOpenState: 20s
+        permittedNumberOfCallsInHalfOpenState: 4
+        slowCallDurationThreshold: 2s
+    instances:
+      productos:
+        baseConfig: defecto
+  timelimiter:
+    configs:
+      defecto:
+        timeoutDuration: 2s
+    instances:
+      productos:
+        baseConfig: defecto
+
+spring:
+  profiles: default
+  application:
+    name: servicio-gateway-server
+  cloud:
+    gateway:
+      routes:
+        - id: servicio-productos
+          uri: lb://servicio-productos
+          predicates:
+            - Path=/api/productos/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productos
+                statusCodes: 500
+                fallbackUri: forward:/api/items/2/cantidad/5
+            - StripPrefix=2
+            - name: Ejemplo
+              args:
+                mensaje: Hola mi mensaje personalizado
+                cookieNombre: usuario
+                cookieValor: AndresGuzman
+        - id: servicio-items
+          uri: lb://servicio-items
+          predicates:
+            - Path=/api/items/**
+          filters:
+            - StripPrefix=2
+            - AddRequestHeader=token-request, 123456
+            - AddResponseHeader=token-response, 123456789
+            - SetResponseHeader=Content-Type, text/plain
+            - AddRequestParameter=nombre, Juan
